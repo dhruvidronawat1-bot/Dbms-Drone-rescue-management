@@ -83,10 +83,10 @@ export default function App() {
               {currentView === 'dashboard' && <Dashboard onNavigate={setCurrentView} stats={stats} />}
               {currentView === 'drones' && <Drones onSaved={loadGlobalStats} />}
               {currentView === 'missions' && <Missions onSaved={loadGlobalStats} />}
-              {currentView === 'victims' && <Victims />}
-              {currentView === 'camps' && <ReliefCamps />}
-              {currentView === 'supplies' && <Supplies />}
-              {currentView === 'operators' && <Operators />}
+              {currentView === 'victims' && <Victims onSaved={loadGlobalStats} />}
+              {currentView === 'camps' && <ReliefCamps onSaved={loadGlobalStats} />}
+              {currentView === 'supplies' && <Supplies onSaved={loadGlobalStats} />}
+              {currentView === 'operators' && <Operators onSaved={loadGlobalStats} />}
               {currentView === 'organizations' && <Organizations />}
               {currentView === 'reports' && <Reports onOpenSqlConsole={() => setIsSqlModalOpen(true)} />}
             </div>

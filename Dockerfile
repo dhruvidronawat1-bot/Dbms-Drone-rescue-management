@@ -1,6 +1,6 @@
 FROM node:20-bookworm-slim AS frontend-build
 WORKDIR /workspace/frontend
-COPY frontend/package.json ./
+COPY frontend/package*.json ./
 RUN npm install --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
