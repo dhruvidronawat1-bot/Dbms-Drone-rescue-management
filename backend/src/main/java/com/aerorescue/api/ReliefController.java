@@ -28,7 +28,7 @@ public class ReliefController {
 
     @GetMapping("/health")
     public Map<String, Boolean> health() {
-        jdbc.queryForObject("SELECT 1 FROM DUAL", Integer.class);
+        jdbc.queryForObject("SELECT 1", Integer.class);
         return Map.of("ok", true);
     }
 
@@ -45,7 +45,6 @@ public class ReliefController {
                   (SELECT COUNT(*) FROM Relief_Camp) AS "camps",
                   (SELECT COUNT(*) FROM Supply) AS "supplies",
                   (SELECT COUNT(*) FROM Operator) AS "operators"
-                FROM DUAL
                 """);
     }
 
@@ -63,7 +62,7 @@ public class ReliefController {
     public List<Map<String, Object>> victims() {
         return jdbc.queryForList("""
                 SELECT v.VictimID AS "victimId", v.VictimName AS "name",
-                       TRUNC(MONTHS_BETWEEN(SYSDATE, v.DateOfBirth) / 12) AS "age",
+                       EXTRACT(YEAR FROM AGE(CURRENT_DATE, v.DateOfBirth)) AS "age",
                        v.Gender AS "gender", v.MedicalPriority AS "priority",
                        v.CurrentStatus AS "status", v.CampID AS "campId",
                        c.CampName AS "camp", dis.DisasterName AS "disaster", l.AreaName AS "location"
@@ -110,13 +109,13 @@ public class ReliefController {
 
         Long campId = input.get("campId") == null || text(input.get("campId")).isBlank()
                 ? null : Long.valueOf(text(input.get("campId")));
-        Long victimId = jdbc.queryForObject("SELECT seq_victim.NEXTVAL FROM DUAL", Long.class);
-        jdbc.update("""
+        Long victimId = jdbc.queryForObject("""
                 INSERT INTO Victim
-                  (VictimID, VictimName, DateOfBirth, Gender, MedicalPriority,
+                  (VictimName, DateOfBirth, Gender, MedicalPriority,
                    CurrentStatus, DisasterID, CampID)
-                VALUES (?, ?, ?, ?, ?, 'Missing', ?, ?)
-                """, victimId, name, Date.valueOf(dob), gender, priority, disasterId, campId);
+                VALUES (?, ?, ?, ?, 'Missing', ?, ?)
+                RETURNING VictimID
+                """, Long.class, name, Date.valueOf(dob), gender, priority, disasterId, campId);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("victimId", victimId));
     }
@@ -124,7 +123,7 @@ public class ReliefController {
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Map<String, String>> databaseError(DataAccessException error) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "Database request failed. Check the Oracle connection and schema."));
+                .body(Map.of("error", "Database request failed. Check the PostgreSQL connection and schema."));
     }
 
     private static String text(Object value) {
