@@ -3,8 +3,6 @@ import {
   Package, UserCog, Building2, FileText,
 } from 'lucide-react';
 
-const fallback = { drones: 9, missions: 3, victims: 5, camps: 5, supplies: 7, operators: 4 };
-
 const tabs = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'drones', label: 'Drones', icon: Plane, count: 'drones' },
@@ -18,7 +16,7 @@ const tabs = [
 ];
 
 export default function NavTabs({ currentView, setCurrentView, stats }) {
-  const data = { ...fallback, ...(stats || {}) };
+  const data = stats || {};
   return (
     <nav className="mb-6 p-1.5 rounded-full bg-black/40 border border-white/15 backdrop-blur-xl flex flex-wrap items-center gap-1 w-fit max-w-full">
       {tabs.map((t) => {
@@ -36,7 +34,7 @@ export default function NavTabs({ currentView, setCurrentView, stats }) {
             <span>{t.label}</span>
             {t.count && (
               <span className={`text-[10px] px-1.5 rounded-full ${active ? 'bg-black/15' : 'bg-white/15'}`}>
-                {data[t.count]}
+                {data[t.count] ?? '—'}
               </span>
             )}
           </button>
@@ -45,3 +43,4 @@ export default function NavTabs({ currentView, setCurrentView, stats }) {
     </nav>
   );
 }
+
