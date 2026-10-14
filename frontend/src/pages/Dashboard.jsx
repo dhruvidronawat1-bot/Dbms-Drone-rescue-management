@@ -1,13 +1,7 @@
 import Badge from '../components/Badge';
 import SqlBar from '../components/SqlBar';
 
-const stats = [
-  { label: 'Drones', value: 9, sub: '2 In Flight', tag: 'COUNT(*)', view: 'drones', subColor: 'text-amber-300' },
-  { label: 'Missions', value: '03', sub: 'Active Right Now', tag: 'ACTIVE', view: 'missions', subColor: 'text-amber-300' },
-  { label: 'Victims', value: 5, sub: '4 Rescued', tag: 'REGISTRY', view: 'victims', subColor: 'text-emerald-300' },
-  { label: 'Camps', value: 5, sub: 'Relief Shelters', tag: 'CAMP', view: 'camps', subColor: 'text-cyan-300' },
-  { label: 'Supplies', value: 7, sub: 'Catalog Stock', tag: 'SUPPLY', view: 'supplies', subColor: 'text-cyan-300' },
-];
+const count = (value) => value ?? '—';
 
 const missions = [
   { id: 'M007', type: 'RESCUE', disaster: 'Wildfire - Accra Outskirts', drone: 'D004', priority: 'CRITICAL', status: 'ACTIVE' },
@@ -20,7 +14,14 @@ const missions = [
 const typeTone = { RESCUE: 'red', SURVEY: 'amber', RELIEF: 'blue' };
 const prioTone = { CRITICAL: 'red', HIGH: 'amber', MEDIUM: 'cyan' };
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate, stats }) {
+  const cards = [
+    { label: 'Drones', value: count(stats?.drones), sub: `${stats?.inFlight ?? 0} In Flight`, tag: 'COUNT(*)', view: 'drones', subColor: 'text-amber-300' },
+    { label: 'Missions', value: count(stats?.missions), sub: `${stats?.activeMissions ?? 0} Active Right Now`, tag: 'ACTIVE', view: 'missions', subColor: 'text-amber-300' },
+    { label: 'Victims', value: count(stats?.victims), sub: `${stats?.rescued ?? 0} Rescued`, tag: 'REGISTRY', view: 'victims', subColor: 'text-emerald-300' },
+    { label: 'Camps', value: count(stats?.camps), sub: 'Relief Shelters', tag: 'CAMP', view: 'camps', subColor: 'text-cyan-300' },
+    { label: 'Supplies', value: count(stats?.supplies), sub: 'Catalog Stock', tag: 'SUPPLY', view: 'supplies', subColor: 'text-cyan-300' },
+  ];
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -41,7 +42,7 @@ export default function Dashboard({ onNavigate }) {
       <SqlBar sql="SELECT COUNT(*) FROM DRONE; SELECT COUNT(*) FROM MISSION WHERE Status = 'ACTIVE'; SELECT COUNT(*) FROM VICTIM; SELECT COUNT(*) FROM RELIEF_CAMP;" />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {stats.map((s) => (
+        {cards.map((s) => (
           <button
             key={s.label}
             onClick={() => onNavigate(s.view)}
@@ -108,3 +109,4 @@ export default function Dashboard({ onNavigate }) {
     </div>
   );
 }
+
