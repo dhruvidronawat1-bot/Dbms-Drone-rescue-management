@@ -8,7 +8,7 @@ export default function SqlBar({ sql }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[10px] font-mono font-bold text-amber-300 tracking-wider">
-          LIVE DATABASE / ORACLE SQL QUERY
+          LIVE DATABASE / SQL QUERY
         </div>
         <div className="text-xs font-mono text-white/80 truncate">{sql}</div>
       </div>
@@ -21,3 +21,4 @@ export default function SqlBar({ sql }) {
     </div>
   );
 }
+
