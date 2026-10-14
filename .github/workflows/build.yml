@@ -1,0 +1,27 @@
+name: Build application
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install frontend dependencies
+        run: npm install --prefix frontend --no-audit --no-fund
+      - name: Build frontend
+        run: npm --prefix frontend run build
+      - name: Package backend
+        run: mvn -B -f backend/pom.xml -DskipTests package
