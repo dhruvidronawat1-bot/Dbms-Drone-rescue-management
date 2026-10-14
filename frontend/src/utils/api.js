@@ -37,3 +37,26 @@ export async function createVictim(form) {
 export async function fetchStats() {
   return { success: true, stats: await request('/stats') };
 }
+
+export async function getDrones() {
+  return request('/drones');
+}
+
+export async function createDrone(form) {
+  return request('/drones', {
+    method: 'POST',
+    body: JSON.stringify(form),
+  });
+}
+
+export async function updateDrone(id, changes) {
+  return request(`/drones/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(changes),
+  });
+}
+
+export async function deleteDrone(id) {
+  return request(`/drones/${id}`, { method: 'DELETE' });
+}
+
