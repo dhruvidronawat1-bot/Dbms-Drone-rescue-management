@@ -60,3 +60,11 @@ export async function deleteDrone(id) {
   return request(`/drones/${id}`, { method: 'DELETE' });
 }
 
+export async function getMissions() {
+  return request('/missions');
+}
+
+export async function completeMission(id) {
+  return request(`/missions/${id}/complete`, { method: 'PUT' });
+}
+
