@@ -41,6 +41,8 @@ public class ReliefController {
                 SELECT
                   (SELECT COUNT(*) FROM Drone) AS "drones",
                   (SELECT COUNT(*) FROM Drone WHERE Status = 'On Mission') AS "inFlight",
+                  (SELECT COUNT(*) FROM Drone WHERE Status = 'Available') AS "readyDrones",
+                  (SELECT COUNT(*) FROM Drone WHERE Status = 'Charging') AS "chargingDrones",
                   (SELECT COUNT(*) FROM Mission) AS "missions",
                   (SELECT COUNT(*) FROM Mission WHERE MissionStatus = 'In Progress') AS "activeMissions",
                   (SELECT COUNT(*) FROM Victim) AS "victims",
@@ -106,6 +108,46 @@ public class ReliefController {
     public ResponseEntity<Void> deleteDrone(@PathVariable long id) {
         if (jdbc.update("DELETE FROM Drone WHERE DroneID = ?", id) == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Drone not found.");
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/missions")
+    public List<Map<String, Object>> missions() {
+        return jdbc.queryForList("""
+                SELECT m.MissionID AS "missionId",
+                       CASE m.MissionType
+                         WHEN 'Rescue' THEN 'RESCUE'
+                         WHEN 'Surveillance' THEN 'SURVEY'
+                         WHEN 'Supply Drop' THEN 'RELIEF'
+                         ELSE UPPER(COALESCE(m.MissionType, 'MISSION'))
+                       END AS "type",
+                       COALESCE(dis.DisasterName, 'Unassigned') AS "disaster",
+                       CASE WHEN dr.DroneID IS NULL THEN 'Unassigned'
+                            ELSE 'D' || LPAD(dr.DroneID::text, 3, '0') || ' (' || dr.Model || ')'
+                       END AS "drone",
+                       COALESCE(NULLIF(BTRIM(op.FirstName || ' ' || COALESCE(op.LastName, '')), ''),
+                                'Unassigned') AS "operator",
+                       m.MissionDate::text AS "date",
+                       UPPER(m.Priority) AS "priority",
+                       CASE m.MissionStatus
+                         WHEN 'In Progress' THEN 'ACTIVE'
+                         WHEN 'Completed' THEN 'COMPLETED'
+                         ELSE UPPER(m.MissionStatus)
+                       END AS "status"
+                FROM Mission m
+                LEFT JOIN Disaster dis ON m.DisasterID = dis.DisasterID
+                LEFT JOIN Drone dr ON m.DroneID = dr.DroneID
+                LEFT JOIN Operator op ON m.OperatorID = op.OperatorID
+                ORDER BY CASE WHEN m.MissionStatus = 'In Progress' THEN 0 ELSE 1 END,
+                         m.MissionDate DESC, m.MissionID
+                """);
+    }
+
+    @PutMapping("/missions/{id}/complete")
+    public ResponseEntity<Void> completeMission(@PathVariable long id) {
+        if (jdbc.update("UPDATE Mission SET MissionStatus = 'Completed' WHERE MissionID = ?", id) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Mission not found.");
         }
         return ResponseEntity.noContent().build();
     }
