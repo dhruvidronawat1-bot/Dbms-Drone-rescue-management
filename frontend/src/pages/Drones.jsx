@@ -1,69 +1,96 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Badge from '../components/Badge';
 import SqlBar from '../components/SqlBar';
-
-const initial = [
-  { id: 'D001', model: 'Falcon-X Heavy Lift', maker: 'AeroTech', payload: 25, battery: 85, flight: 45, status: 'READY' },
-  { id: 'D002', model: 'Hawk-S Thermal Survey', maker: 'SkyWorks', payload: 8, battery: 15, flight: 60, status: 'CHARGING' },
-  { id: 'D003', model: 'Aeroliner Skybarge', maker: 'AeroDynamic', payload: 12, battery: 60, flight: 30, status: 'ACTIVE' },
-  { id: 'D004', model: 'Condor Rescue Max', maker: 'AeroTech', payload: 20, battery: 72, flight: 50, status: 'ACTIVE' },
-  { id: 'D005', model: 'Swift Medic', maker: 'SkyWorks', payload: 6, battery: 95, flight: 40, status: 'READY' },
-  { id: 'D006', model: 'Ridge Scout', maker: 'AeroDynamic', payload: 4, battery: 10, flight: 25, status: 'MAINTENANCE' },
-];
+import { createDrone, deleteDrone, getDrones, updateDrone } from '../utils/api';
 
 const tone = { READY: 'green', ACTIVE: 'amber', CHARGING: 'blue', MAINTENANCE: 'red' };
 const filters = ['ALL', 'READY', 'ACTIVE', 'CHARGING', 'MAINTENANCE'];
+const emptyForm = { model: '', maker: '', payload: '', status: 'READY' };
+const displayId = (id) => `D${String(id).padStart(3, '0')}`;
 
-export default function Drones() {
-  const [rows, setRows] = useState(initial);
+export default function Drones({ onSaved }) {
+  const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('ALL');
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ model: '', maker: '', payload: '', status: 'READY' });
+  const [form, setForm] = useState(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadRows = useCallback(async () => {
+    setError('');
+    try {
+      setRows(await getDrones());
+    } catch (err) {
+      setError(err.message || 'Could not load drones from the database.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadRows(); }, [loadRows]);
 
   const shown = rows.filter(
-    (r) =>
-      (filter === 'ALL' || r.status === filter) &&
-      `${r.id} ${r.model} ${r.maker}`.toLowerCase().includes(q.toLowerCase())
+    (r) => (filter === 'ALL' || r.status === filter) &&
+      `${displayId(r.droneId)} ${r.model} ${r.maker}`.toLowerCase().includes(q.toLowerCase())
   );
 
-  const remove = (id) => {
-    if (window.confirm(`Are you sure you want to delete Drone ${id}? This will execute a SQL DELETE operation.`)) {
-      setRows(rows.filter((r) => r.id !== id));
+  const remove = async (row) => {
+    if (!window.confirm(`Delete drone ${displayId(row.droneId)} from the database?`)) return;
+    try {
+      await deleteDrone(row.droneId);
+      await loadRows();
+      await onSaved?.();
+    } catch (err) {
+      setError(err.message || 'Could not delete this drone.');
     }
   };
 
-  const edit = (r) => {
-    const model = window.prompt('Edit drone model:', r.model);
-    if (model) setRows(rows.map((x) => (x.id === r.id ? { ...x, model } : x)));
+  const edit = async (row) => {
+    const model = window.prompt('Edit drone model:', row.model)?.trim();
+    if (!model || model === row.model) return;
+    try {
+      await updateDrone(row.droneId, { model });
+      await loadRows();
+    } catch (err) {
+      setError(err.message || 'Could not update this drone.');
+    }
   };
 
-  const add = (e) => {
-    e.preventDefault();
-    const id = 'D' + String(rows.length + 1).padStart(3, '0');
-    setRows([
-      ...rows,
-      { id, model: form.model, maker: form.maker, payload: +form.payload || 0, battery: 100, flight: 40, status: form.status },
-    ]);
-    setForm({ model: '', maker: '', payload: '', status: 'READY' });
-    setAdding(false);
+  const add = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      await createDrone({ ...form, payload: Number(form.payload || 0) });
+      setForm(emptyForm);
+      setAdding(false);
+      await loadRows();
+      await onSaved?.();
+    } catch (err) {
+      setError(err.message || 'Could not save this drone.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const input = 'w-full bg-black/40 border border-white/20 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-white/50';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-white">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-3xl font-black tracking-tight">DRONE MANAGEMENT</h2>
-          <p className="text-xs text-white/70">Real-time fleet database, telemetry tracking, and hardware deployment.</p>
+          <p className="text-xs text-white/70">Fleet records are loaded from the connected database.</p>
         </div>
         <button onClick={() => setAdding(true)} className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold">
           + Add Drone
         </button>
       </div>
 
-      <SqlBar sql="SELECT * FROM DRONE WHERE 1=1 ORDER BY DroneID ASC;" />
+      <SqlBar sql="SELECT * FROM DRONE ORDER BY DroneID ASC;" />
+      {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm">{error}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-black/40 border border-white/15">
         <input
@@ -74,13 +101,7 @@ export default function Drones() {
         />
         <div className="flex gap-1.5">
           {filters.map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-full text-[10px] font-bold border ${
-                filter === f ? 'bg-white text-black border-white' : 'bg-white/5 border-white/20 text-white/80'
-              }`}
-            >
+            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-full text-[10px] font-bold border ${filter === f ? 'bg-white text-black border-white' : 'bg-white/5 border-white/20 text-white/80'}`}>
               {f}
             </button>
           ))}
@@ -97,32 +118,30 @@ export default function Drones() {
             </tr>
           </thead>
           <tbody>
-            {shown.map((r) => (
-              <tr key={r.id} className="border-t border-white/10">
-                <td className="p-3 font-mono">{r.id}</td>
-                <td className="p-3 font-semibold">{r.model}</td>
-                <td className="p-3 text-white/80">{r.maker}</td>
-                <td className="p-3">{r.payload} kg</td>
-                <td className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 rounded-full bg-white/15 overflow-hidden">
-                      <div
-                        className={`h-full ${r.battery < 25 ? 'bg-red-400' : r.battery < 60 ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                        style={{ width: `${r.battery}%` }}
-                      />
+            {loading ? <tr><td colSpan="8" className="p-6 text-center text-white/60">Loading drones…</td></tr>
+              : shown.map((r) => (
+                <tr key={r.droneId} className="border-t border-white/10">
+                  <td className="p-3 font-mono">{displayId(r.droneId)}</td>
+                  <td className="p-3 font-semibold">{r.model}</td>
+                  <td className="p-3 text-white/80">{r.maker}</td>
+                  <td className="p-3">{r.payload} kg</td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-1.5 rounded-full bg-white/15 overflow-hidden">
+                        <div className={`h-full ${r.battery < 25 ? 'bg-red-400' : r.battery < 60 ? 'bg-amber-400' : 'bg-emerald-400'}`} style={{ width: `${r.battery}%` }} />
+                      </div>
+                      <span className="font-mono text-[10px]">{r.battery}%</span>
                     </div>
-                    <span className="font-mono text-[10px]">{r.battery}%</span>
-                  </div>
-                </td>
-                <td className="p-3">{r.flight} min</td>
-                <td className="p-3"><Badge tone={tone[r.status]}>{r.status}</Badge></td>
-                <td className="p-3 text-right space-x-1.5">
-                  <button onClick={() => edit(r)} className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20">✎</button>
-                  <button onClick={() => remove(r.id)} className="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300">🗑</button>
-                </td>
-              </tr>
-            ))}
-            {shown.length === 0 && (
+                  </td>
+                  <td className="p-3">{r.flight} min</td>
+                  <td className="p-3"><Badge tone={tone[r.status]}>{r.status}</Badge></td>
+                  <td className="p-3 text-right space-x-1.5">
+                    <button onClick={() => edit(r)} className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20" aria-label={`Edit ${displayId(r.droneId)}`}>✎</button>
+                    <button onClick={() => remove(r)} className="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/40 text-red-300" aria-label={`Delete ${displayId(r.droneId)}`}>🗑</button>
+                  </td>
+                </tr>
+              ))}
+            {!loading && shown.length === 0 && (
               <tr><td colSpan="8" className="p-6 text-center text-white/60">No drones match.</td></tr>
             )}
           </tbody>
@@ -135,13 +154,13 @@ export default function Drones() {
             <h3 className="font-bold text-lg">Add Drone</h3>
             <input required className={input} placeholder="Model" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
             <input required className={input} placeholder="Manufacturer" value={form.maker} onChange={(e) => setForm({ ...form, maker: e.target.value })} />
-            <input className={input} type="number" placeholder="Payload (kg)" value={form.payload} onChange={(e) => setForm({ ...form, payload: e.target.value })} />
+            <input className={input} type="number" min="0" step="0.1" placeholder="Payload (kg)" value={form.payload} onChange={(e) => setForm({ ...form, payload: e.target.value })} />
             <select className={input} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              {filters.slice(1).map((s) => <option key={s}>{s}</option>)}
+              {filters.slice(1).map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setAdding(false)} className="w-1/2 py-2.5 rounded-xl bg-white/10 text-xs font-semibold">Cancel</button>
-              <button type="submit" className="w-1/2 py-2.5 rounded-xl bg-[#262626] border border-white/25 text-xs font-bold">Save</button>
+              <button type="submit" disabled={saving} className="w-1/2 py-2.5 rounded-xl bg-[#262626] border border-white/25 text-xs font-bold disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </form>
         </div>
@@ -149,3 +168,4 @@ export default function Drones() {
     </div>
   );
 }
+
