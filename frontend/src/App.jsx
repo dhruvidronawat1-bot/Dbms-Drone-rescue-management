@@ -82,7 +82,7 @@ export default function App() {
             <div className="flex-1 pb-10">
               {currentView === 'dashboard' && <Dashboard onNavigate={setCurrentView} stats={stats} />}
               {currentView === 'drones' && <Drones onSaved={loadGlobalStats} />}
-              {currentView === 'missions' && <Missions />}
+              {currentView === 'missions' && <Missions onSaved={loadGlobalStats} />}
               {currentView === 'victims' && <Victims />}
               {currentView === 'camps' && <ReliefCamps />}
               {currentView === 'supplies' && <Supplies />}
