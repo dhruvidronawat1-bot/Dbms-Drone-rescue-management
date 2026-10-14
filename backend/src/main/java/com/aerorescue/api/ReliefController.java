@@ -11,7 +11,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -46,6 +49,65 @@ public class ReliefController {
                   (SELECT COUNT(*) FROM Supply) AS "supplies",
                   (SELECT COUNT(*) FROM Operator) AS "operators"
                 """);
+    }
+
+    @GetMapping("/drones")
+    public List<Map<String, Object>> drones() {
+        return jdbc.queryForList("""
+                SELECT DroneID AS "droneId", Model AS "model", Manufacturer AS "maker",
+                       PayloadCapacity AS "payload", BatteryLevel AS "battery",
+                       MaxFlightTime AS "flight",
+                       CASE Status
+                         WHEN 'Available' THEN 'READY'
+                         WHEN 'On Mission' THEN 'ACTIVE'
+                         WHEN 'Charging' THEN 'CHARGING'
+                         WHEN 'Under Maintenance' THEN 'MAINTENANCE'
+                       END AS "status"
+                FROM Drone
+                ORDER BY DroneID
+                """);
+    }
+
+    @PostMapping("/drones")
+    public ResponseEntity<Map<String, Object>> createDrone(@RequestBody Map<String, Object> input) {
+        String model = text(input.get("model"));
+        String maker = text(input.get("maker"));
+        if (model.isBlank() || maker.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Model and manufacturer are required.");
+        }
+
+        String status = droneStatus(text(input.getOrDefault("status", "READY")));
+        double payload = decimal(input.get("payload"), 0);
+        if (payload < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payload cannot be negative.");
+        }
+
+        Long droneId = jdbc.queryForObject("""
+                INSERT INTO Drone (Model, Manufacturer, PayloadCapacity, BatteryLevel, MaxFlightTime, Status)
+                VALUES (?, ?, ?, 100, 40, ?)
+                RETURNING DroneID
+                """, Long.class, model, maker, payload, status);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("droneId", droneId));
+    }
+
+    @PutMapping("/drones/{id}")
+    public ResponseEntity<Void> updateDrone(@PathVariable long id, @RequestBody Map<String, Object> input) {
+        String model = text(input.get("model"));
+        if (model.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Model is required.");
+        }
+        if (jdbc.update("UPDATE Drone SET Model = ? WHERE DroneID = ?", model, id) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Drone not found.");
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/drones/{id}")
+    public ResponseEntity<Void> deleteDrone(@PathVariable long id) {
+        if (jdbc.update("DELETE FROM Drone WHERE DroneID = ?", id) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Drone not found.");
+        }
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/camps")
@@ -129,4 +191,24 @@ public class ReliefController {
     private static String text(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
     }
+
+    private static double decimal(Object value, double fallback) {
+        if (value == null || text(value).isBlank()) return fallback;
+        try {
+            return Double.parseDouble(text(value));
+        } catch (NumberFormatException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payload must be a number.");
+        }
+    }
+
+    private static String droneStatus(String status) {
+        return switch (status) {
+            case "READY" -> "Available";
+            case "ACTIVE" -> "On Mission";
+            case "CHARGING" -> "Charging";
+            case "MAINTENANCE" -> "Under Maintenance";
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid drone status.");
+        };
+    }
 }
+
