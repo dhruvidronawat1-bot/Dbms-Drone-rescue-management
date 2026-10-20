@@ -116,6 +116,29 @@ FROM relief_camp c
 LEFT JOIN victim v ON v.campid = c.campid
 GROUP BY c.campid, c.campname, c.capacity, c.location;
 
+-- Normalize legacy active missions so every in-progress sortie has one real drone.
+WITH ranked_active AS (
+    SELECT missionid,
+           ROW_NUMBER() OVER (
+               PARTITION BY droneid
+               ORDER BY missiondate DESC, missionid DESC
+           ) AS position
+    FROM mission
+    WHERE missionstatus = 'In Progress' AND droneid IS NOT NULL
+)
+UPDATE mission m
+SET missionstatus = 'Planned'
+FROM ranked_active r
+WHERE m.missionid = r.missionid AND r.position > 1;
+
+UPDATE mission
+SET missionstatus = 'Planned'
+WHERE missionstatus = 'In Progress' AND droneid IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS mission_one_active_per_drone_idx
+ON mission (droneid)
+WHERE missionstatus = 'In Progress' AND droneid IS NOT NULL;
+
 -- =========================================================
 -- SEED DATA
 -- =========================================================
