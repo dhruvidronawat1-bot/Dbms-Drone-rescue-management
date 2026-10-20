@@ -303,14 +303,16 @@ public class ReliefController {
     @GetMapping("/camps")
     public List<Map<String, Object>> camps() {
         return jdbc.queryForList("""
-                SELECT campid AS "campId",
-                       campname AS "name",
-                       capacity AS "capacity",
-                       COALESCE(location, 'Sector Base') AS "location",
-                       currentoccupancy AS "occupied",
-                       vacantspace AS "vacant"
-                FROM camp_occupancy_view
-                ORDER BY campid ASC
+                SELECT c.campid AS "campId",
+                       c.campname AS "name",
+                       c.capacity AS "capacity",
+                       COALESCE(c.location, 'Sector Base') AS "location",
+                       COUNT(v.victimid)::INTEGER AS "occupied",
+                       (c.capacity - COUNT(v.victimid))::INTEGER AS "vacant"
+                FROM relief_camp c
+                LEFT JOIN victim v ON v.campid = c.campid
+                GROUP BY c.campid, c.campname, c.capacity, c.location
+                ORDER BY c.campid ASC
                 """);
     }
 
