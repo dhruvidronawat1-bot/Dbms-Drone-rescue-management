@@ -13,6 +13,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -238,27 +239,44 @@ public class ReliefController {
     }
 
     @PostMapping("/missions")
+    @Transactional
     public ResponseEntity<Map<String, Object>> createMission(@RequestBody Map<String, Object> input) {
         String type = text(input.getOrDefault("type", "Rescue"));
         String priority = text(input.getOrDefault("priority", "High"));
         String location = text(input.getOrDefault("location", "Operational Zone"));
         String notes = text(input.getOrDefault("notes", ""));
 
-        Long droneId = input.get("droneId") != null && !text(input.get("droneId")).isBlank()
-                ? Long.valueOf(text(input.get("droneId"))) : null;
+        String droneValue = text(input.get("droneId"));
+        if (droneValue.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select an available drone before deploying a mission.");
+        }
+        Long droneId;
+        try {
+            droneId = Long.valueOf(droneValue);
+        } catch (NumberFormatException error) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid drone selection.");
+        }
+
+        String droneStatus = jdbc.query("""
+                SELECT status FROM drone WHERE droneid = ? FOR UPDATE
+                """, rs -> rs.next() ? rs.getString(1) : null, droneId);
+        if (droneStatus == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Selected drone was not found.");
+        }
+        if (!"Available".equals(droneStatus)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "That drone is no longer available. Refresh the fleet and choose another.");
+        }
+
         Long operatorId = input.get("operatorId") != null && !text(input.get("operatorId")).isBlank()
                 ? Long.valueOf(text(input.get("operatorId"))) : null;
         Long disasterId = input.get("disasterId") != null && !text(input.get("disasterId")).isBlank()
                 ? Long.valueOf(text(input.get("disasterId"))) : null;
 
-        // Auto-assign first active disaster if not provided
         if (disasterId == null) {
             List<Long> dis = jdbc.query("SELECT disasterid FROM disaster WHERE status = 'Active' LIMIT 1",
                     (rs, r) -> rs.getLong(1));
             if (!dis.isEmpty()) disasterId = dis.get(0);
         }
-
-        // Auto-assign first active operator if not provided
         if (operatorId == null) {
             List<Long> ops = jdbc.query("SELECT operatorid FROM operator LIMIT 1", (rs, r) -> rs.getLong(1));
             if (!ops.isEmpty()) operatorId = ops.get(0);
@@ -270,15 +288,12 @@ public class ReliefController {
                 RETURNING missionid
                 """, Long.class, type, priority, disasterId, droneId, operatorId, location, notes);
 
-        // If drone was assigned, immediately mark drone as 'On Mission'
-        if (droneId != null) {
-            jdbc.update("UPDATE drone SET status = 'On Mission' WHERE droneid = ?", droneId);
-        }
-
+        jdbc.update("UPDATE drone SET status = 'On Mission' WHERE droneid = ?", droneId);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("success", true, "missionId", missionId));
     }
 
     @PutMapping("/missions/{id}/complete")
+    @Transactional
     public ResponseEntity<Map<String, Object>> completeMission(@PathVariable long id) {
         // Find assigned drone ID
         List<Long> assigned = jdbc.query("SELECT droneid FROM mission WHERE missionid = ?",
