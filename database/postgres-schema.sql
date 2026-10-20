@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS organization (
     contactphone VARCHAR(30)
 );
 
-CREATE OR REPLACE VIEW camp_occupancy_view AS
+DROP VIEW IF EXISTS camp_occupancy_view;
+CREATE VIEW camp_occupancy_view AS
 SELECT c.campid, c.campname, c.capacity,
        COALESCE(c.location, 'Central Zone') AS location,
        COUNT(v.victimid)::INTEGER AS currentoccupancy,
