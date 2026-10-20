@@ -260,6 +260,7 @@ export default function Missions({ onSaved }) {
                 Assign Drone ({availableDrones.length} Available)
               </label>
               <select
+                required
                 className={inputClass}
                 value={form.droneId}
                 onChange={(e) => setForm({ ...form, droneId: e.target.value })}
@@ -271,6 +272,9 @@ export default function Missions({ onSaved }) {
                   </option>
                 ))}
               </select>
+              {availableDrones.length === 0 && (
+                <p className="mt-2 text-xs text-amber-300">No drones are available. Complete an active mission or add a drone before dispatching another sortie.</p>
+              )}
             </div>
 
             <div>
@@ -304,10 +308,10 @@ export default function Missions({ onSaved }) {
               </button>
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || availableDrones.length === 0}
                 className="w-1/2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold disabled:opacity-50"
               >
-                {saving ? 'Deploying…' : 'Launch Sortie'}
+                {saving ? 'Deploying…' : availableDrones.length === 0 ? 'No Drone Available' : 'Launch Sortie'}
               </button>
             </div>
           </form>
