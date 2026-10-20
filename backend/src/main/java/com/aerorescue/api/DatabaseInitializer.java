@@ -168,7 +168,8 @@ public class DatabaseInitializer implements ApplicationRunner {
             )
         """);
 
-        // Camp occupancy view
+        // Recreate the view so existing databases can safely adopt its current column layout.
+        exec("DROP VIEW IF EXISTS camp_occupancy_view");
         exec("""
             CREATE OR REPLACE VIEW camp_occupancy_view AS
             SELECT c.campid, c.campname, c.capacity,
