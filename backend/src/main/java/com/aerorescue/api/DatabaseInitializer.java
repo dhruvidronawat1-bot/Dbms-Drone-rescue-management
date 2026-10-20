@@ -126,6 +126,29 @@ public class DatabaseInitializer implements ApplicationRunner {
         exec("ALTER TABLE mission ADD COLUMN IF NOT EXISTS location VARCHAR(120)");
         exec("ALTER TABLE mission ADD COLUMN IF NOT EXISTS notes TEXT");
 
+        // Keep old or manually-created records from claiming more drones than exist.
+        exec("""
+            WITH ranked_active AS (
+                SELECT missionid,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY droneid
+                           ORDER BY missiondate DESC, missionid DESC
+                       ) AS position
+                FROM mission
+                WHERE missionstatus = 'In Progress' AND droneid IS NOT NULL
+            )
+            UPDATE mission m
+            SET missionstatus = 'Planned'
+            FROM ranked_active r
+            WHERE m.missionid = r.missionid AND r.position > 1
+        """);
+        exec("UPDATE mission SET missionstatus = 'Planned' WHERE missionstatus = 'In Progress' AND droneid IS NULL");
+        exec("""
+            CREATE UNIQUE INDEX IF NOT EXISTS mission_one_active_per_drone_idx
+            ON mission (droneid)
+            WHERE missionstatus = 'In Progress' AND droneid IS NOT NULL
+        """);
+
         // Victim table
         exec("""
             CREATE TABLE IF NOT EXISTS victim (
