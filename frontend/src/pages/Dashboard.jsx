@@ -14,15 +14,24 @@ export default function Dashboard({ onNavigate, stats }) {
 
   useEffect(() => {
     let active = true;
-    getMissions()
-      .then((rows) => {
-        if (active) setMissions(rows);
-      })
-      .catch((error) => {
-        if (active) setMissionError(error.message || 'Could not load missions.');
-      });
+    const refreshMissions = () => {
+      getMissions()
+        .then((rows) => {
+          if (active) {
+            setMissions(rows);
+            setMissionError('');
+          }
+        })
+        .catch((error) => {
+          if (active) setMissionError(error.message || 'Could not load missions.');
+        });
+    };
+
+    refreshMissions();
+    const timer = window.setInterval(refreshMissions, 12000);
     return () => {
       active = false;
+      window.clearInterval(timer);
     };
   }, []);
 
